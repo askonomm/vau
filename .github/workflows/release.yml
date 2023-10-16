@@ -51,7 +51,7 @@ jobs:
           release_name: ${{steps.semver.outputs.version_tag}}
           body: |
             This release is created automatically.
-          draft: false
+          draft: true
           prerelease: false
 
       - uses: actions-rs/toolchain@v1
