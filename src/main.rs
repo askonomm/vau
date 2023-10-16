@@ -10,7 +10,7 @@ use tera::Tera;
 
 fn store() -> Siena {
     siena(LocalProvider {
-        directory: "../asko.dev/data".to_string(),
+        directory: "./data".to_string(),
     })
 }
 
@@ -80,7 +80,7 @@ fn compose_home(tera: &Tera) {
 }
 
 fn compile() {
-    let tera = Tera::new("../asko.dev/templates/**/*").unwrap();
+    let tera = Tera::new("templates/**/*").unwrap();
 
     delete_public_dir();
     compose_blog_posts(&tera);
@@ -93,12 +93,12 @@ fn watch() {
 
     debouncer
         .watcher()
-        .watch(Path::new("../asko.dev/templates"), RecursiveMode::Recursive)
+        .watch(Path::new("templates"), RecursiveMode::Recursive)
         .unwrap();
 
     debouncer
         .watcher()
-        .watch(Path::new("../asko.dev/data"), RecursiveMode::Recursive)
+        .watch(Path::new("data"), RecursiveMode::Recursive)
         .unwrap();
 
     for res in rx {
