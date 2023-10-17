@@ -8,15 +8,18 @@ use std::path::Path;
 use std::time::Duration;
 use tera::Tera;
 
+const ROOT_DIR: &str = "./";
+
 fn store() -> Siena {
     siena(LocalProvider {
-        directory: "./data".to_string(),
+        directory: format!("{}data", ROOT_DIR).to_string(),
     })
 }
 
 fn delete_public_dir() {
-    if Path::new("public/").exists() {
-        fs::remove_dir_all("public/").expect("Could not remove public directory.");
+    if Path::new(&format!("{}public/", ROOT_DIR)).exists() {
+        fs::remove_dir_all(&format!("{}public/", ROOT_DIR))
+            .expect("Could not remove public directory.");
     }
 }
 
@@ -35,8 +38,14 @@ fn compose_blog_posts(tera: &Tera) {
 
                 let rendered = tera.render("post.html.tera", &context).unwrap();
 
-                let dir_path = format!("public/blog/{}", post.data.get("slug").unwrap());
-                let path = format!("public/blog/{}/index.html", post.data.get("slug").unwrap());
+                let dir_path =
+                    format!("{}public/blog/{}", ROOT_DIR, post.data.get("slug").unwrap());
+
+                let path = format!(
+                    "{}public/blog/{}/index.html",
+                    ROOT_DIR,
+                    post.data.get("slug").unwrap()
+                );
 
                 println!(
                     "Compiling {} ...",
@@ -66,7 +75,7 @@ fn compose_home(tera: &Tera) {
     // Projects
     let projects = store()
         .collection("projects")
-        .sort("date", RecordSortOrder::Desc)
+        .sort("order", RecordSortOrder::Asc)
         .get_all();
 
     context.insert("projects", &projects);
@@ -75,12 +84,12 @@ fn compose_home(tera: &Tera) {
 
     println!("Compiling index ...");
 
-    fs::create_dir_all("public/").unwrap();
-    fs::write("public/index.html", rendered).unwrap();
+    fs::create_dir_all(&format!("{}public/", ROOT_DIR)).unwrap();
+    fs::write(&format!("{}public/index.html", ROOT_DIR), rendered).unwrap();
 }
 
 fn compile() {
-    let tera = Tera::new("templates/**/*").unwrap();
+    let tera = Tera::new(&format!("{}templates/**/*", ROOT_DIR)).unwrap();
 
     delete_public_dir();
     compose_blog_posts(&tera);
@@ -93,12 +102,18 @@ fn watch() {
 
     debouncer
         .watcher()
-        .watch(Path::new("templates"), RecursiveMode::Recursive)
+        .watch(
+            Path::new(&format!("{}templates", ROOT_DIR)),
+            RecursiveMode::Recursive,
+        )
         .unwrap();
 
     debouncer
         .watcher()
-        .watch(Path::new("data"), RecursiveMode::Recursive)
+        .watch(
+            Path::new(&format!("{}data", ROOT_DIR)),
+            RecursiveMode::Recursive,
+        )
         .unwrap();
 
     for res in rx {
