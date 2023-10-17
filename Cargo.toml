@@ -11,3 +11,5 @@ tera = "1.19.1"
 notify = "6.1.1"
 notify-debouncer-mini = { version = "*", default-features = false }
 log = "0.4.20"
+toml = "0.8.2"
+serde = { version = "1.0.189", features = ["derive"] }

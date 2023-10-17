@@ -1,5 +1,6 @@
 use notify::RecursiveMode;
 use notify_debouncer_mini::new_debouncer;
+use serde::Deserialize;
 use siena::providers::local::LocalProvider;
 use siena::siena::{siena, RecordSortOrder, Siena};
 use std::env;
@@ -14,6 +15,40 @@ fn store() -> Siena {
     siena(LocalProvider {
         directory: format!("{}data", ROOT_DIR).to_string(),
     })
+}
+
+#[derive(Deserialize, Debug)]
+struct ConfigDataDSLWhenIs {
+    key: String,
+    equals: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct ConfigDataDSLSort {
+    key: String,
+    order: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct ConfigDataDSL {
+    name: String,
+    collection: String,
+    when_is: Option<ConfigDataDSLWhenIs>,
+    sort: Option<ConfigDataDSLSort>,
+    limit: Option<usize>,
+}
+
+#[derive(Deserialize, Debug)]
+struct Config {
+    data: Option<Vec<ConfigDataDSL>>,
+}
+
+fn read_config() -> Config {
+    let config_path = format!("{}config.toml", ROOT_DIR);
+    let config = fs::read_to_string(config_path).unwrap();
+    let parsed_config: Config = toml::from_str(&config).unwrap();
+
+    parsed_config
 }
 
 fn delete_public_dir() {
@@ -60,25 +95,39 @@ fn compose_blog_posts(tera: &Tera) {
 }
 
 fn compose_home(tera: &Tera) {
+    let config = read_config();
     let mut context = tera::Context::new();
 
-    // Latest posts
-    let posts = store()
-        .collection("posts")
-        .when_is("status", "published")
-        .sort("date", RecordSortOrder::Desc)
-        .limit(10)
-        .get_all();
+    if config.data.is_some() {
+        for data in config.data.unwrap() {
+            let mut records = store().collection(&data.collection);
 
-    context.insert("posts", &posts);
+            // when_is
+            if data.when_is.is_some() {
+                let when_is = data.when_is.unwrap();
+                records = records.when_is(&when_is.key, &when_is.equals);
+            }
 
-    // Projects
-    let projects = store()
-        .collection("projects")
-        .sort("order", RecordSortOrder::Asc)
-        .get_all();
+            // sort
+            if data.sort.is_some() {
+                let sort = data.sort.unwrap();
+                let order = match sort.order.clone().as_str() {
+                    "asc" => RecordSortOrder::Asc,
+                    "desc" => RecordSortOrder::Desc,
+                    &_ => RecordSortOrder::Asc,
+                };
 
-    context.insert("projects", &projects);
+                records = records.sort(&sort.key, order);
+            }
+
+            // limit
+            if data.limit.is_some() {
+                records = records.limit(data.limit.unwrap());
+            }
+
+            context.insert(data.name, &records.get_all());
+        }
+    }
 
     let rendered = tera.render("index.html.tera", &context).unwrap();
 
