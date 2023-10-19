@@ -26,10 +26,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get current date
-        id: date
-        run: |
-          echo "{date}={$(date +'%Y-%m-%d')}" >> $GITHUB_STATE
+      - name: set env
+        run: echo "NOW=$(date +'%Y.%m.%d')" >> $GITHUB_ENV
 
       - name: 'Create Release'
         id: create_release
@@ -37,8 +35,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
         with:
-          tag_name: ${{ env.date }}
-          release_name: ${{ env.date }}
+          tag_name: "${{ env.NOW }}"
+          release_name: "${{ env.NOW }}"
           body: |
             This release is created automatically.
           draft: true

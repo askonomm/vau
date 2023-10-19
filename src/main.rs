@@ -133,12 +133,12 @@ fn str_before_char(input: &str, char: &str) -> String {
 }
 
 fn parse_page_path(path: &str, record: &Record) -> Result<String, Error> {
-    let mut parsed_path = path.clone().to_string();
+    let mut parsed_path = path.to_string();
     let vars_in_path_re = Regex::new(r"\{(\w+)}")?;
 
     // Parse path
     for (_, [var]) in vars_in_path_re.captures_iter(&path).map(|c| c.extract()) {
-        let needle = &format!("{{{}}}", var.clone());
+        let needle = &format!("{{{}}}", var);
         let val = record.data.get(var).unwrap();
 
         parsed_path = parsed_path.replace(needle, val);
