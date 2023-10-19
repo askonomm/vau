@@ -1481,9 +1481,11 @@ dependencies = [
  "log",
  "notify",
  "notify-debouncer-mini",
+ "regex",
  "serde",
  "siena",
  "tera",
+ "thiserror",
  "toml",
 ]
 

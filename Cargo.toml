@@ -3,7 +3,12 @@ name = "vau"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
 
 [dependencies]
 siena = "2.0.1"
@@ -13,3 +18,5 @@ notify-debouncer-mini = { version = "*", default-features = false }
 log = "0.4.20"
 toml = "0.8.2"
 serde = { version = "1.0.189", features = ["derive"] }
+thiserror = "1.0"
+regex = "1.10.1"

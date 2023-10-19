@@ -1,13 +1,15 @@
 use notify::RecursiveMode;
 use notify_debouncer_mini::new_debouncer;
+use regex::Regex;
 use serde::Deserialize;
 use siena::providers::local::LocalProvider;
-use siena::siena::{siena, RecordSortOrder, Siena};
-use std::env;
+use siena::siena::{siena, Record, RecordSortOrder, Siena};
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
-use tera::Tera;
+use std::{env, io};
+use tera::{Context, Tera};
+use thiserror::Error;
 
 const ROOT_DIR: &str = "./";
 
@@ -15,6 +17,20 @@ fn store() -> Siena {
     siena(LocalProvider {
         directory: format!("{}data", ROOT_DIR).to_string(),
     })
+}
+
+#[derive(Error, Debug)]
+enum Error {
+    #[error("Watcher failed.")]
+    Notify(#[from] notify::Error),
+    #[error("Templating failed.")]
+    Tera(#[from] tera::Error),
+    #[error("File system failed.")]
+    Io(#[from] io::Error),
+    #[error("Config read failed.")]
+    Toml(#[from] toml::de::Error),
+    #[error("Regex failed.")]
+    Regex(#[from] regex::Error),
 }
 
 #[derive(Deserialize, Debug)]
@@ -39,64 +55,42 @@ struct ConfigDataDSL {
 }
 
 #[derive(Deserialize, Debug)]
+struct ConfigPagesDSLPage {
+    path: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct ConfigPagesDSL {
+    collection: Option<String>,
+    page: ConfigPagesDSLPage,
+    template: String,
+}
+
+#[derive(Deserialize, Debug)]
 struct Config {
     data: Option<Vec<ConfigDataDSL>>,
+    pages: Option<Vec<ConfigPagesDSL>>,
 }
 
-fn read_config() -> Config {
+fn read_config() -> Result<Config, Error> {
     let config_path = format!("{}config.toml", ROOT_DIR);
-    let config = fs::read_to_string(config_path).unwrap();
-    let parsed_config: Config = toml::from_str(&config).unwrap();
+    let config = fs::read_to_string(config_path)?;
+    let parsed_config: Config = toml::from_str(&config)?;
 
-    parsed_config
+    Ok(parsed_config)
 }
 
-fn delete_public_dir() {
+fn delete_public_dir() -> Result<(), Error> {
     if Path::new(&format!("{}public/", ROOT_DIR)).exists() {
-        fs::remove_dir_all(&format!("{}public/", ROOT_DIR))
-            .expect("Could not remove public directory.");
+        fs::remove_dir_all(&format!("{}public/", ROOT_DIR))?;
     }
+
+    Ok(())
 }
 
-fn compose_blog_posts(tera: &Tera) {
-    let posts = store()
-        .collection("posts")
-        .sort("date", RecordSortOrder::Desc)
-        .get_all();
-
-    for post in posts {
-        match post.data.get("slug") {
-            None => continue,
-            Some(_) => {
-                let mut context = tera::Context::new();
-                context.insert("post", &post);
-
-                let rendered = tera.render("post.html.tera", &context).unwrap();
-
-                let dir_path =
-                    format!("{}public/blog/{}", ROOT_DIR, post.data.get("slug").unwrap());
-
-                let path = format!(
-                    "{}public/blog/{}/index.html",
-                    ROOT_DIR,
-                    post.data.get("slug").unwrap()
-                );
-
-                println!(
-                    "Compiling {} ...",
-                    format!("blog/{}", post.data.get("slug").unwrap())
-                );
-
-                fs::create_dir_all(dir_path).unwrap();
-                fs::write(path, rendered).unwrap();
-            }
-        }
-    }
-}
-
-fn compose_home(tera: &Tera) {
-    let config = read_config();
-    let mut context = tera::Context::new();
+fn compose_tera_context() -> Result<Context, Error> {
+    let config = read_config()?;
+    let mut context = Context::new();
 
     if config.data.is_some() {
         for data in config.data.unwrap() {
@@ -129,56 +123,132 @@ fn compose_home(tera: &Tera) {
         }
     }
 
-    let rendered = tera.render("index.html.tera", &context).unwrap();
-
-    println!("Compiling index ...");
-
-    fs::create_dir_all(&format!("{}public/", ROOT_DIR)).unwrap();
-    fs::write(&format!("{}public/index.html", ROOT_DIR), rendered).unwrap();
+    Ok(context)
 }
 
-fn compile() {
-    let tera = Tera::new(&format!("{}templates/**/*", ROOT_DIR)).unwrap();
+fn str_before_char(input: &str, char: &str) -> String {
+    let parts: Vec<&str> = input.split(char).collect();
 
-    delete_public_dir();
-    compose_blog_posts(&tera);
-    compose_home(&tera);
+    parts[0..parts.len() - 1].join(char)
 }
 
-fn watch() {
-    let (tx, rx) = std::sync::mpsc::channel();
-    let mut debouncer = new_debouncer(Duration::from_secs(1), tx).unwrap();
+fn parse_page_path(path: &str, record: &Record) -> Result<String, Error> {
+    let mut parsed_path = path.clone().to_string();
+    let vars_in_path_re = Regex::new(r"\{(\w+)}")?;
 
-    debouncer
-        .watcher()
-        .watch(
-            Path::new(&format!("{}templates", ROOT_DIR)),
-            RecursiveMode::Recursive,
-        )
-        .unwrap();
+    // Parse path
+    for (_, [var]) in vars_in_path_re.captures_iter(&path).map(|c| c.extract()) {
+        let needle = &format!("{{{}}}", var.clone());
+        let val = record.data.get(var).unwrap();
 
-    debouncer
-        .watcher()
-        .watch(
-            Path::new(&format!("{}data", ROOT_DIR)),
-            RecursiveMode::Recursive,
-        )
-        .unwrap();
+        parsed_path = parsed_path.replace(needle, val);
+    }
 
-    for res in rx {
-        match res {
-            Ok(_) => compile(),
-            Err(error) => println!("{}", error),
+    Ok(parsed_path)
+}
+
+fn compile_collection_pages(tera: &Tera, dsl: &ConfigPagesDSL) -> Result<(), Error> {
+    let mut context = compose_tera_context()?;
+    let records = store()
+        .collection(&dsl.collection.as_ref().unwrap())
+        .get_all();
+
+    for record in records {
+        context.insert("record", &record);
+
+        let path = parse_page_path(&dsl.page.path, &record)?;
+        let rendered = tera.render(&dsl.template, &context)?;
+        let dir_path = format!("{}public/{}", ROOT_DIR, str_before_char(&path, "/"));
+        let file_path = format!("{}public/{}", ROOT_DIR, path);
+
+        println!("Compiling {}", file_path);
+
+        fs::create_dir_all(dir_path)?;
+        fs::write(file_path, rendered)?;
+    }
+
+    Ok(())
+}
+
+fn compile_page(tera: &Tera, dsl: &ConfigPagesDSL) -> Result<(), Error> {
+    let context = compose_tera_context()?;
+    let path = &dsl.page.path;
+    let rendered = tera.render(&dsl.template, &context)?;
+    let dir_path = format!("{}public/{}", ROOT_DIR, str_before_char(&path, "/"));
+    let file_path = format!("{}public/{}", ROOT_DIR, path);
+
+    println!("Compiling {}", file_path);
+
+    fs::create_dir_all(dir_path)?;
+    fs::write(file_path, rendered)?;
+
+    Ok(())
+}
+
+fn compile_pages(tera: &Tera) -> Result<(), Error> {
+    let config = read_config()?;
+
+    if config.pages.is_some() {
+        for page in config.pages.unwrap() {
+            // A whole collection
+            if page.collection.is_some() {
+                compile_collection_pages(&tera, &page)?;
+            }
+            // Otherwise just a single page
+            else {
+                compile_page(&tera, &page)?
+            }
         }
     }
+
+    Ok(())
 }
 
-fn main() {
+fn compile() -> Result<(), Error> {
+    let tera = Tera::new(&format!("{}templates/**/*", ROOT_DIR))?;
+
+    delete_public_dir()?;
+    compile_pages(&tera)?;
+
+    Ok(())
+}
+
+fn watch() -> Result<(), Error> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut debouncer = new_debouncer(Duration::from_secs(1), tx)?;
+
+    debouncer.watcher().watch(
+        Path::new(&format!("{}templates", ROOT_DIR)),
+        RecursiveMode::Recursive,
+    )?;
+
+    debouncer.watcher().watch(
+        Path::new(&format!("{}data", ROOT_DIR)),
+        RecursiveMode::Recursive,
+    )?;
+
+    for res in rx {
+        return match res {
+            Ok(_) => {
+                compile()?;
+
+                Ok(())
+            }
+            Err(err) => Err(Error::Notify(err)),
+        };
+    }
+
+    Ok(())
+}
+
+fn main() -> Result<(), Error> {
     let args: Vec<String> = env::args().collect();
 
-    compile();
+    compile()?;
 
     if args.len() > 1 && args[1] == "--watch" {
-        watch();
+        watch()?;
     }
+
+    Ok(())
 }
