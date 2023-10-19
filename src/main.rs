@@ -118,59 +118,61 @@ fn compose_tera_context() -> Result<Context, Error> {
     let config = read_config()?;
     let mut context = Context::new();
 
-    if config.data.is_some() {
-        for data in config.data.unwrap() {
-            let mut records = store().collection(&data.collection);
+    let Some(data_items) = config.data else {
+        return Ok(context);
+    };
 
-            // when_is
-            if data.when_is.is_some() {
-                let when_is = data.when_is.unwrap();
-                records = records.when_is(&when_is.key, &when_is.equals);
-            }
+    for data in data_items {
+        let mut records = store().collection(&data.collection);
 
-            // when_is_not
-            if data.when_is_not.is_some() {
-                let when_isnt = data.when_is_not.unwrap();
-                records = records.when_isnt(&when_isnt.key, &when_isnt.equals);
-            }
-
-            // when_has
-            if data.when_has.is_some() {
-                let when_has = data.when_has.unwrap();
-                records = records.when_has(&when_has.key);
-            }
-
-            // when_has_not
-            if data.when_has_not.is_some() {
-                let when_has_not = data.when_has_not.unwrap();
-                records = records.when_hasnt(&when_has_not.key);
-            }
-
-            // when_matches
-            if data.when_matches.is_some() {
-                let when_matches = data.when_matches.unwrap();
-                records = records.when_matches(&when_matches.key, &when_matches.regex);
-            }
-
-            // sort
-            if data.sort.is_some() {
-                let sort = data.sort.unwrap();
-                let order = match sort.order.clone().as_str() {
-                    "asc" => RecordSortOrder::Asc,
-                    "desc" => RecordSortOrder::Desc,
-                    &_ => RecordSortOrder::Asc,
-                };
-
-                records = records.sort(&sort.key, order);
-            }
-
-            // limit
-            if data.limit.is_some() {
-                records = records.limit(data.limit.unwrap());
-            }
-
-            context.insert(data.name, &records.get_all());
+        // when_is
+        if data.when_is.is_some() {
+            let when_is = data.when_is.unwrap();
+            records = records.when_is(&when_is.key, &when_is.equals);
         }
+
+        // when_is_not
+        if data.when_is_not.is_some() {
+            let when_isnt = data.when_is_not.unwrap();
+            records = records.when_isnt(&when_isnt.key, &when_isnt.equals);
+        }
+
+        // when_has
+        if data.when_has.is_some() {
+            let when_has = data.when_has.unwrap();
+            records = records.when_has(&when_has.key);
+        }
+
+        // when_has_not
+        if data.when_has_not.is_some() {
+            let when_has_not = data.when_has_not.unwrap();
+            records = records.when_hasnt(&when_has_not.key);
+        }
+
+        // when_matches
+        if data.when_matches.is_some() {
+            let when_matches = data.when_matches.unwrap();
+            records = records.when_matches(&when_matches.key, &when_matches.regex);
+        }
+
+        // sort
+        if data.sort.is_some() {
+            let sort = data.sort.unwrap();
+            let order = match sort.order.clone().as_str() {
+                "asc" => RecordSortOrder::Asc,
+                "desc" => RecordSortOrder::Desc,
+                &_ => RecordSortOrder::Asc,
+            };
+
+            records = records.sort(&sort.key, order);
+        }
+
+        // limit
+        if data.limit.is_some() {
+            records = records.limit(data.limit.unwrap());
+        }
+
+        context.insert(data.name, &records.get_all());
     }
 
     Ok(context)
@@ -190,6 +192,11 @@ fn parse_page_path(path: &str, record: &Record) -> Result<String, Error> {
     // Parse path
     for (_, [var]) in vars_in_path_re.captures_iter(&path).map(|c| c.extract()) {
         let needle = &format!("{{{}}}", var);
+
+        if record.data.get(var).is_none() {
+            continue;
+        }
+
         let val = record.data.get(var).unwrap();
 
         parsed_path = parsed_path.replace(needle, val);
@@ -238,17 +245,18 @@ fn compile_page(tera: &Tera, dsl: &ConfigPagesDSL) -> Result<(), Error> {
 
 fn compile_pages(tera: &Tera) -> Result<(), Error> {
     let config = read_config()?;
+    let Some(pages) = config.pages else {
+        return Ok(());
+    };
 
-    if config.pages.is_some() {
-        for page in config.pages.unwrap() {
-            // A whole collection
-            if page.collection.is_some() {
-                compile_collection_pages(&tera, &page)?;
-            }
-            // Otherwise just a single page
-            else {
-                compile_page(&tera, &page)?
-            }
+    for page in pages {
+        // A whole collection
+        if page.collection.is_some() {
+            compile_collection_pages(&tera, &page)?;
+        }
+        // Otherwise just a single page
+        else {
+            compile_page(&tera, &page)?
         }
     }
 
