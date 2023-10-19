@@ -26,20 +26,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: paulhatch/semantic-version@v4.0.2
-        id: semver
-        with:
-          # The prefix to use to identify tags
-          tag_prefix: "v"
-          # A string which, if present in a git commit, indicates that a change represents a
-          # major (breaking) change, supports regular expressions wrapped with '/'
-          major_pattern: "(MAJOR)"
-          # Same as above except indicating a minor change, supports regular expressions wrapped with '/'
-          minor_pattern: "(MINOR)"
-          # A string to determine the format of the version output
-          format: "${major}.${minor}.${patch}"
-          # If this is set to true, *every* commit will be treated as a new version.
-          bump_each_commit: true
+      - name: Get current date
+        id: date
+        run: |
+          echo "{date}={$(date +'%Y-%m-%d')}" >> $GITHUB_STATE
 
       - name: 'Create Release'
         id: create_release
@@ -47,8 +37,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
         with:
-          tag_name: ${{steps.semver.outputs.version_tag}}
-          release_name: ${{steps.semver.outputs.version_tag}}
+          tag_name: ${{ env.date }}
+          release_name: ${{ env.date }}
           body: |
             This release is created automatically.
           draft: true
