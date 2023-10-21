@@ -71,7 +71,6 @@ pub struct Config {
 
 pub fn read_config() -> Result<Config, Error> {
     let config_path = format!("{}config.toml", ROOT_DIR);
-    println!("{:?}", &config_path);
     let config = fs::read_to_string(config_path)?;
     let parsed_config: Config = toml::from_str(&config)?;
 

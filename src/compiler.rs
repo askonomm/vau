@@ -81,8 +81,6 @@ fn compose_tera_context() -> Result<Context, Error> {
         }
     }
 
-    println!("{:?}", context);
-
     Ok(context)
 }
 
@@ -144,9 +142,7 @@ fn compile_page(tera: &Tera, dsl: &ConfigPagesDSL, ctx: &Context) -> Result<(), 
 }
 
 fn compile_pages(tera: &Tera) -> Result<(), Error> {
-    //print!("asd");
     let config = read_config()?;
-    print!("asd");
     let context = compose_tera_context()?;
 
     let Some(pages) = config.pages else {
