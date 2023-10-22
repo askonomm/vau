@@ -12,7 +12,7 @@ use std::time::Duration;
 use std::{env, io};
 use thiserror::Error;
 
-const ROOT_DIR: &str = "./";
+const ROOT_DIR: &str = "../asko.dev/";
 
 fn store() -> Siena {
     siena(LocalProvider {
@@ -22,15 +22,15 @@ fn store() -> Siena {
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("Watcher failed.")]
+    #[error("Watcher failed: {0}")]
     Notify(#[from] notify::Error),
-    #[error("Templating failed.")]
+    #[error("Templating failed: {0}")]
     Tera(#[from] tera::Error),
-    #[error("File system failed.")]
+    #[error("File system failed: {0}")]
     Io(#[from] io::Error),
-    #[error("Config read failed.")]
+    #[error("Config read failed: {0}")]
     Toml(#[from] toml::de::Error),
-    #[error("Regex failed.")]
+    #[error("Regex failed: {0}")]
     Regex(#[from] regex::Error),
 }
 

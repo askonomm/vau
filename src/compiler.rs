@@ -1,7 +1,7 @@
 use crate::config::{read_config, ConfigPagesDSL};
 use crate::{store, utils, Error, ROOT_DIR};
 use regex::Regex;
-use siena::siena::{Record, RecordSortOrder};
+use siena::siena::{Record, RecordData, RecordSortOrder};
 use std::fs;
 use std::path::Path;
 use tera::{Context, Tera};
@@ -34,7 +34,7 @@ fn compose_tera_context() -> Result<Context, Error> {
         // when_is_not
         if data.when_is_not.is_some() {
             let when_isnt = data.when_is_not.unwrap();
-            records = records.when_isnt(&when_isnt.key, &when_isnt.equals);
+            records = records.when_is_not(&when_isnt.key, &when_isnt.equals);
         }
 
         // when_has
@@ -46,7 +46,7 @@ fn compose_tera_context() -> Result<Context, Error> {
         // when_has_not
         if data.when_has_not.is_some() {
             let when_has_not = data.when_has_not.unwrap();
-            records = records.when_hasnt(&when_has_not.key);
+            records = records.when_has_not(&when_has_not.key);
         }
 
         // when_matches
@@ -98,7 +98,11 @@ fn parse_page_path(path: &str, record: &Record) -> Result<String, Error> {
 
         let val = record.data.get(var).unwrap();
 
-        parsed_path = parsed_path.replace(needle, val);
+        match val {
+            RecordData::Str(s) => parsed_path = parsed_path.replace(needle, s),
+            RecordData::Num(n) => parsed_path = parsed_path.replace(needle, &n.to_string()),
+            _ => (),
+        }
     }
 
     Ok(parsed_path)

@@ -1181,15 +1181,16 @@ checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "siena"
-version = "2.0.1"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94fa4050acce9520f9bec3ef5835c2e6dbf36d74618fc05965a578f0a8737157"
+checksum = "b01b87126fd2a2630290d9aecfbd23a648e3c6b09caa36e40599a332bfe69893"
 dependencies = [
  "comrak",
  "regex",
  "serde",
  "serde-frontmatter",
  "serde_yaml 0.9.25",
+ "thiserror",
 ]
 
 [[package]]
