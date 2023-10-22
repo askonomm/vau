@@ -12,7 +12,7 @@ use std::time::Duration;
 use std::{env, io};
 use thiserror::Error;
 
-const ROOT_DIR: &str = "../asko.dev/";
+const ROOT_DIR: &str = "./";
 
 fn store() -> Siena {
     siena(LocalProvider {
