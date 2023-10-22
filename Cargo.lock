@@ -1181,9 +1181,9 @@ checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "siena"
-version = "3.1.0"
+version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b01b87126fd2a2630290d9aecfbd23a648e3c6b09caa36e40599a332bfe69893"
+checksum = "2c46636531b8db6f4d237abb7a10c6766649329614347c5ff1e2d7553a899b3b"
 dependencies = [
  "comrak",
  "regex",
