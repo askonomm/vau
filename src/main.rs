@@ -1,4 +1,5 @@
 mod compiler;
+pub mod components;
 mod config;
 mod utils;
 
@@ -11,6 +12,7 @@ use std::path::Path;
 use std::time::Duration;
 use std::{env, io};
 use thiserror::Error;
+use vizia::prelude::*;
 
 const ROOT_DIR: &str = "./";
 
@@ -65,6 +67,20 @@ fn watch() -> Result<(), Error> {
 
 fn main() -> Result<(), Error> {
     let args: Vec<String> = env::args().collect();
+
+    if args.len() > 1 && args[1] == "--gui" {
+        Application::new(|cx| {
+            HStack::new(cx, |cx| {
+                components::sidebar(cx);
+                Label::new(cx, "content area");
+            });
+        })
+        .title("Vau")
+        .inner_size((840, 600))
+        .run();
+
+        return Ok(());
+    }
 
     compile()?;
 
